@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>to do list</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-size: 18px;
+        }
+
+        #box {
+            width: 500px;
+            background-color: #ddd;
+            margin: 50px auto;
+            padding: 20px 30px;
+        }
+
+        .txt input {
+            width: 400px;
+            height: 36px;
+            border: 1px solid #333;
+            text-indent: 10px;
+            border-radius: 5px;
+        }
+
+        p span.comp {
+            color: rgb(10, 98, 199);
+        }
+
+        #box p {
+            margin-top: 20px;
+        }
+
+        #box h3 {
+            margin-top: 20px;
+        }
+
+        #box ul {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        #box ul li {
+            line-height: 50px;
+            border-bottom: 1px dotted #aaa;
+        }
+
+        #box ul li button {
+            padding: 2px 4px;
+            float: right;
+            margin-top: 13px;
+        }
+
+        #box li input[type="text"] {
+            border: 1px solid #aaa;
+            height: 28px;
+            line-height: 28px;
+            border-radius: 3px;
+        }
+
+        .line {
+            color: gray;
+            text-decoration: line-through !important;
+        }
+        .on {
+            color: red !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 
+        任务描述：双击编辑，回车确认，失去焦点确认，esc取消编辑，勾选设置下划线，点击删除按钮删除当前，回车添加内容，不能添加空内容
+     -->
+    <div id="box">
+        <div class="txt">
+            <input type="text" placeholder="回车即可添加内容" @keyup.enter="add" v-model="mytitle">
+        </div>
+        <p v-show="arr.length">
+            任务总数：{{arr.length}}个； 还有{{noChecked}}个任务没完成； 【<span class="comp" @click="complete">删除已完成</span>】
+            <br>
+            <a href="#all" :class="{on:visibility=='all'}">全部任务</a>
+            <a href="#unfinish" :class="{on:visibility=='unfinish'}">未完成</a>
+            <a href="#finish" :class="{on:visibility=='finish'}">已完成</a>
+        </p>
+        <p v-show="!arr.length">还没有添加任务</p>
+        <h3>任务列表</h3>
+        <ul>
+            <li v-for="(item, index) in filtersarr" :key="item.id" :class="{line:item.isChecked}">
+                <input type="checkbox" v-model="item.isChecked">
+                <span @dblclick="editToDo(item)" v-show="!item.edit">{{item.title}}</span>
+                <input type="text" v-show="item.edit" v-model="item.title" v-focus="item.edit" @blur="item.edit=false"
+                    @keyup.enter="item.edit=false" @keyup.esc="cancelToDo(item)">
+                <button @click="del(item.id)">X</button>
+            </li>
+        </ul>
+    </div>
+
+    <script src='https://cdn.bootcdn.net/ajax/libs/vue/2.6.11/vue.js'></script>
+    <script>
+        // 封装两个方法：localStorage存储和获取
+        let store = {
+            save(key, value) {
+                console.log(key);//todolist
+                console.log(value);//arr内容
+                //设置
+                localStorage.setItem(key, JSON.stringify(value))
+            },
+            fetch(key) {
+                if (JSON.parse(localStorage.getItem(key))) {
+                    //获取 
+                    return JSON.parse(localStorage.getItem(key))
+                } else {
+                    return []
+                }
+            }
+        }
+
+        let list = store.fetch('todolist');
+        // console.log(list);
+
+        let vm = new Vue({
+            el: '#box',
+            data: {
+                arr: list,
+                oldtitle: "",
+                mytitle: "",
+                 // 通过这个属性值的变化在计算属性filtersarr中对数据进行筛选
+                visibility: 'all'
+            },
+
+            watch: {
+                // 深度监控：监控对象和对象属性的变化，勾选后，刷新依然有勾选效果
+                arr: {
+                    handler: function (val) {
+                        store.save('todolist', val)
+                    },
+                    deep: true
+                }
+            },
+            methods: {
+                // 添加
+                add() {
+                    if(this.mytitle == ""){return}
+                    this.arr.push({ id:Date.now(), title: this.mytitle, isChecked: false, edit: false });
+                    this.mytitle = "";
+                },
+
+                // 编辑
+                editToDo(item) {
+                     // 编辑的时候记录一下当前文本框的值
+                    this.oldtitle = item.title;
+                    item.edit = true;
+                },
+
+                // 取消
+                cancelToDo(item) {
+                    item.title = this.oldtitle;
+                    this.oldtitle = "" // 之前记录的值已经没有用了，所以设置为空
+                    item.edit = false;
+                },
+
+                // 删除
+                del(id) {
+                    console.log(id);
+                    let index = this.arr.findIndex((item) => {
+                        return item.id == id;
+                    })
+                    this.arr.splice(index, 1)
+                },
+
+                // 完成
+                complete() {
+                    let temp = this.arr;
+                    this.arr = []
+                    this.arr = temp.filter((item) => {
+                        return !item.isChecked;
+                    });
+                    // temp.forEach((item, index) => {
+                    //     if (!item.isChecked) {
+                    //         this.arr.push(item)
+                    //     }
+                    // })
+                }
+            },
+            // 自定义指令，添加获取焦点效果
+            directives: {
+                focus: {
+                    update(el, bind) {
+                        if (bind.value) {
+                            el.focus();
+                        }
+                    },
+                }
+            },
+            computed: {
+                noChecked: function () {
+                    return this.arr.filter((item) => {
+                        return !item.isChecked
+                    }).length
+                },
+
+                filtersarr: function(){
+                    // visibility:all全部， unfinish未完成， finish已完成
+                    if(this.visibility == 'unfinish'){
+                        return this.arr.filter((item) => {
+                            return !item.isChecked;
+                        });
+                    } else if(this.visibility == 'finish'){
+                        return this.arr.filter((item) => {
+                            return item.isChecked;
+                        });
+                    } else {
+                        return this.arr;
+                    }
+
+                }
+            },
+        });
+        function watchHashChange(){
+            let myhash = location.hash.slice(1);
+            vm.visibility = myhash;
+            console.log(myhash);
+        }
+        watchHashChange()
+
+        window.addEventListener('hashchange',watchHashChange)
+    </script>
+</body>
+
+</html>
